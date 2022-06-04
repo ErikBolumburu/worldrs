@@ -5,10 +5,9 @@ mod tile;
 use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::rect::Rect;
 use tile::{Tile, TileType};
 use std::time::Duration;
-use noise::{NoiseFn, Perlin};
+use noise::{Perlin,NoiseFn};
 use ndarray::{Array, ArrayBase, OwnedRepr, Dim};
 
 const WORLD_X_SIZE: usize = 800;
@@ -32,10 +31,8 @@ pub fn main() {
     let world = generate_world();
 
     let mut event_pump = sdl_context.event_pump().unwrap();
-    let mut i = 0;
     'running: loop {
-        i = (i + 1) % 255;
-        canvas.set_draw_color(Color::RGB(i, 64, 255 - i));
+        canvas.set_draw_color(Color::RGB(30, 30, 30));
         canvas.clear();
         for event in event_pump.poll_iter() {
             match event {
@@ -47,20 +44,48 @@ pub fn main() {
             }
         }
         // The rest of the game loop goes here...
-
-        canvas.set_draw_color(Color::RGBA(255, 0, 0, 255));
-        canvas.fill_rect(Rect::new(50, 50, 50, 50)).unwrap();
-
+        for tile in world.iter(){
+            if tile.tile_type == TileType::WATER {
+                canvas.set_draw_color(Color::RGBA(0, 0, 255, 255));
+            }
+            else if tile.tile_type == TileType::GRASS {
+                canvas.set_draw_color(Color::RGBA(0, 255, 0, 255));
+            }
+            canvas.fill_rect(tile.rect).unwrap();
+        }
         canvas.present();
         ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
 
 fn generate_world() -> ArrayBase<OwnedRepr<Tile>, Dim<[usize; 2]>>{
-    let noise = Perlin::default();
+    let noise = Perlin::new();
     
-    let mut init_tile: Tile = Tile{x_pos: 0, y_pos: 0, rect: sdl2::rect::Rect::new(100, 100, 100, 100), tile_type: TileType::GRASS};
-    let world: ArrayBase<OwnedRepr<Tile>, Dim<[usize; 2]>> = Array::from_elem((WORLD_X_SIZE, WORLD_Y_SIZE), init_tile);
+    let init_tile: Tile = Tile{
+        x_pos: 0,
+        y_pos: 0,
+        height: 0.0,
+        rect: sdl2::rect::Rect::new(100, 100, 100, 100),
+        tile_type: TileType::GRASS};
+
+    let mut world: ArrayBase<OwnedRepr<Tile>, Dim<[usize; 2]>> 
+    = Array::from_elem((WORLD_X_SIZE, WORLD_Y_SIZE), init_tile);
+
+    for ((x, y), tile) in world.indexed_iter_mut(){
+        tile.height = noise.get([x as f64 + 0.01, y as f64 + 0.01, 2.8]);
+        tile.x_pos = x as i32;
+        tile.y_pos = y as i32;
+        tile.rect.x = x as i32 * 8;
+        tile.rect.y = y as i32 * 8;
+        tile.rect.w = 8;
+        tile.rect.h = 8;
+        if tile.height > 0.0 {
+            tile.tile_type = TileType::GRASS;
+        }
+        else{
+            tile.tile_type = TileType::WATER;
+        }
+    }
 
     return world;
 }
